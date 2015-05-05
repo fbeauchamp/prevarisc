@@ -1,11 +1,12 @@
-<?php
-echo $this->headScript()->appendFile('/js/dossier/dossierGeneral.js','text/javascript');
-?>
-
 <div id='dossierInfos'>
 
-<h3 float='left' >Descriptif du dossier</h3>
-
+<h3 float='left' >
+    Descriptif
+    <?php
+        if(isset($this->natureConcerne[0]['ID_NATURE']) && $this->natureConcerne[0]['ID_NATURE'] != 19)
+            echo "des travaux";
+     ?>
+</h3>
 
 <!-- Boutons -->
 <div float='right' >
@@ -15,23 +16,12 @@ echo $this->headScript()->appendFile('/js/dossier/dossierGeneral.js','text/javas
     $action = $this->do;
     echo "  
         <div id='boutons' style='float: right'>
-            <button id='modificationDossier' class='btn' style='".( ($action == 'new')? "display:none;" : "" )."'><i class='icon-pencil'></i>&nbsp;Modifier</button>
+            <button id='modificationDossier' class='btn' style='".( ($action == 'new' || $this->infosDossier['VERROU_DOSSIER'] == 1)? "display:none;" : "" )."'><i class='icon-pencil'></i>&nbsp;Modifier</button>
             <button id='annulModification' class='btn' style='".( ($action == 'new' || $action == 'edit')? "display:none;" : "" )." z-index:150;'>Annuler</button>
             <button id='validModification' class='save btn btn-success' style='".( ($action == 'new' || $action == 'edit')? "display:none;" : "" )." z-index:150;'><i class='icon-ok icon-white'></i>&nbsp;Sauvegarder</button>
             <div id='chargement'></div>
     </div>"
  ?>
-
-<!--
-    <div class="read">
-        <button id='modifier_button'>Modifier</button>
-    </div>
-
-    <div class="edit">
-        <button id='cancel_button'>Annuler</button>
-        <button id='save_button' class="save" >Sauvegarder</button>
-    </div>
--->
 
 </div>
 

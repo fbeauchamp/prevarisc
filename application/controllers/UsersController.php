@@ -2,342 +2,88 @@
 
 class UsersController extends Zend_Controller_Action
 {
-    /**
-     * @inheritdoc
-     */  
-    public function init()
+    public function indexAction()
     {
-        // Définition du layout menu_left
-        $this->_helper->layout->setLayout('menu_left');
-        
-        $ajaxContext = $this->_helper->getHelper('AjaxContext');
-        $ajaxContext->addActionContext('add', 'json')
-                    ->addActionContext('process', 'json')
-                    ->initContext();
-    }
-    
-    /**
-     * Liste des utilisateurs en fonction de leur groupe
-     *
-     */
-    public function listAction()
-    {
-        // Modèles 
-        $DB_groupe = new Model_DbTable_Groupe;
-        $DB_user = new Model_DbTable_Utilisateur;
-        $DB_groupe = new Model_DbTable_Groupe;
-        
-        // Récupération de l'ensemble des informations et on envoie sur la vue
-        $this->view->groupes = $DB_groupe->fetchAll()->toArray();
-        
-        // Si on affiche un groupe en particulier, on envoie ses informations
-        if($this->hasParam('gid'))
-        {
-            $this->view->users = $DB_user->getUsersWithInformations($this->_request->getParam('gid'));
-            $this->view->groupe = $DB_groupe->find($this->_request->getParam('gid'))->current();
-        }
-        else
-        {
-            $this->view->users = $DB_user->getUsersWithInformations();
-        }
+        $this->_helper->layout->setLayout('menu_admin');
+
+        $service_user = new Service_User;
+        $service_search = new Service_Search;
+
+        $this->view->users = $service_search->users(null, null, $this->hasParam('gid') ? $this->_request->getParam('gid') : null, true, 1000)['results'];
+        $this->view->inactives_users = $service_search->users(null, null, $this->hasParam('gid') ? $this->_request->getParam('gid') : null, false, 1000)['results'];
+
+        $this->view->groupes = $service_user->getAllGroupes();
     }
 
-    /**
-     * Ajouter un groupe
-     *
-     */
-    public function addGroupAction()
-    {
-        // Modèles
-        $DB_groupe = new Model_DbTable_Groupe;
-        
-        // Si un groupe est spécifié, on l'édite
-        if($this->hasParam('gid'))
-        {
-            $this->view->groupe = $DB_groupe->find($this->_request->getParam('gid'))->current();
-        }
-    }
-    
-    /**
-     * Supprimer un groupe
-     *
-     */
-    public function deleteGroupAction()
-    {
-        // Modèles
-        $DB_user = new Model_DbTable_Utilisateur;
-        $DB_groupe = new Model_DbTable_Groupe;
-        
-        // SI un groupe est spécifié, on le supprime
-        if($this->hasParam('gid') && $this->_request->getParam('gid') != 1)
-        {
-            // récupération de tous les utilisateurs du groupe à supprimer
-            $all_users = $DB_user->fetchAll("ID_GROUPE = " . $this->_request->gid);
-
-            // On bouge les users du groupe à supprimer dans le groupe par défaut
-            if ($all_users != null)
-            {
-                foreach($all_users as $item)
-                {
-                    $user = $DB_user->find( $item->ID_UTILISATEUR )->current();
-                    $user->ID_GROUPE = 1;
-                    $user->save();
-                }
-            }
-            
-            // On supprime le groupe
-            $DB_groupe->delete($this->_request->getParam('gid'));
-        }
-        
-        // Redirection
-        $this->_helper->redirector('list');
-    }
-
-    /**
-     * Sauvegarder un groupe
-     *
-     */
-    public function saveGroupAction()
-    {
-        // Modèles
-        $DB_groupe = new Model_DbTable_Groupe;
-
-        // On analyse si on ajoute ou on édite
-        if($this->_request->getParam('gid') != '')
-        {
-            $groupe = $DB_groupe->find($this->_request->getParam('gid'))->current();
-            $groupe->setFromArray(array_intersect_key($_POST, $DB_groupe->info('metadata')))->save();
-        }
-        else
-        {
-            $DB_groupe->insert(array_intersect_key($_POST, $DB_groupe->info('metadata')));
-        }
-        
-        // Redirection
-        $this->_helper->redirector('list');
-    }
-
-    /**
-     * Éditer un utilisateur
-     *
-     */
     public function editAction()
     {
-        // Modèles
-        $DB_user = new Model_DbTable_Utilisateur;
-        $DB_informations = new Model_DbTable_UtilisateurInformations;
-        $model_commune = new Model_DbTable_AdresseCommune;
-        $model_commissions = new Model_DbTable_Commission;
-        $model_groupements = new Model_DbTable_Groupement;
+        $this->_helper->layout->setLayout('menu_admin');
 
-        // Récupération de l'utilisateur
-        $user = $DB_user->find($this->_request->getParam('uid'))->current();
+        $service_user = new Service_User;
+        $service_groupement = new Service_GroupementCommunes;
+        $service_commission = new Service_Commission;
+        $service_adresse = new Service_Adresse;
 
-        // Envoie sur la vue des informations de l'utilisateur
-        $this->view->user = $user;
-        $this->view->user_info = $DB_informations->find( $user->ID_UTILISATEURINFORMATIONS )->current();
-        $ldap_options = Zend_Controller_Front::getInstance()->getParam('bootstrap')->getOption('ldap');
-        $this->view->params = array("LDAP_ACTIF" => $ldap_options['enabled']);
-        $this->view->commune = $model_commune->find($user->NUMINSEE_COMMUNE)->current();
+        $this->view->user = $service_user->find($this->_request->getParam('uid'));
+        $this->view->commissions = $service_commission->getAll();
+        $this->view->groupements = $service_groupement->findGroupementAndGroupementType();
+        $this->view->fonctions = $service_user->getAllFonctions();
+        $this->view->communes = $service_adresse->getAllCommunes();
+        $this->view->groupes = $service_user->getAllGroupes();
+        $this->view->params = array("LDAP_ACTIF" => getenv('PREVARISC_LDAP_ENABLED'));
 
-        // Récupération des commissions et des groupements
-        $this->view->rowset_commissions = $model_commissions->fetchAll();
-        $this->view->rowset_commissionsUser = $DB_user->getCommissions($user->ID_UTILISATEUR);
-        $this->view->rowset_groupements = $model_groupements->fetchAll();
-        $this->view->rowset_groupementsUser = $DB_user->getGroupements($user->ID_UTILISATEUR);
-        
-        // Rendu de la vue add
-        $this->render('add');
+        $this->view->add = false;
+
+        if($this->_request->isPost()) {
+            try {
+                $post = $this->_request->getPost();
+                $service_user->save($post, $_FILES['avatar'], $this->_request->uid);
+                $this->_helper->flashMessenger(array('context' => 'success', 'title' => 'Mise à jour réussie !', 'message' => 'L\'utilisateur a bien été mis à jour.'));
+                $this->_helper->redirector('index', null, null);
+            }
+            catch(Exception $e) {
+                $this->_helper->flashMessenger(array('context' => 'error','title' => '','message' => 'L\'utilisateur n\'a pas été mis à jour. Veuillez rééssayez. (' . $e->getMessage() . ')'));
+            }
+        }
     }
 
-    /**
-     * Ajouter un utilisateur
-     *
-     */
     public function addAction()
     {
-        // Modèles
-        $model_commissions = new Model_DbTable_Commission;
-        $model_groupements = new Model_DbTable_Groupement;
-        
-        // Récupération des commissions et des groupements
-        $this->view->rowset_commissions = $model_commissions->fetchAll();
-        $this->view->rowset_groupements = $model_groupements->fetchAll();
-        $ldap_options = Zend_Controller_Front::getInstance()->getParam('bootstrap')->getOption('ldap');
-        $this->view->params = array("LDAP_ACTIF" => $ldap_options['enabled']);
-    }
+        $this->_helper->layout->setLayout('menu_admin');
 
-    /**
-     * Ajouter un maire
-     *
-     */
-    public function maireAddAction()
-    {
-        // Modèles
-        $model_commissions = new Model_DbTable_Commission;
-        $model_groupements = new Model_DbTable_Groupement;
-        
-        // On dit à la vue que nous avons affaire à un maire !
-        $this->view->maire = true;
+        $service_user = new Service_User;
+        $service_groupement = new Service_GroupementCommunes;
+        $service_commission = new Service_Commission;
+        $service_adresse = new Service_Adresse;
 
-        // Récupération des commissions et des groupements
-        $this->view->rowset_commissions = $model_commissions->fetchAll();
-        $this->view->rowset_groupements = $model_groupements->fetchAll();
+        $this->view->commissions = $service_commission->getAll();
+        $this->view->groupements = $service_groupement->findGroupementAndGroupementType();
+        $this->view->fonctions = $service_user->getAllFonctions();
+        $this->view->communes = $service_adresse->getAllCommunes();
+        $this->view->groupes = $service_user->getAllGroupes();
+        $this->view->params = array("LDAP_ACTIF" => getenv('PREVARISC_LDAP_ENABLED'));
 
-        // Rendu de la vue add
-        $this->render('add');
-    }
+        $this->view->add = true;
 
-    /**
-     * Sauvegarder un utilisateur
-     *
-     */
-    public function processAction()
-    {
-        // Modèles
-        $DB_user = new Model_DbTable_Utilisateur;
-        $DB_informations = new Model_DbTable_UtilisateurInformations;
-        $model = new Model_DbTable_AdresseCommune;
-
-        $user = $info = $id = null;
-
-        // Ajout ou édition ?
-        if($this->hasParam('uid'))
-        {
-            $user = $DB_user->find( $this->getRequest()->getParam('uid') )->current();
-            $info = $DB_informations->find( $user->ID_UTILISATEURINFORMATIONS )->current();
-
-            $info->setFromArray(array_intersect_key($_POST, $DB_informations->info('metadata')));
-
-            $info->DATE_PRV2 = isset($this->_request->DATE_PRV2) ? $this->getDate($this->_request->DATE_PRV2) : "0000-00-00 00:00:00";
-            $info->DATE_RECYCLAGE = isset($this->_request->DATE_RECYCLAGE) ? $this->getDate($this->_request->DATE_RECYCLAGE) : "0000-00-00 00:00:00";
-            $info->DATE_SID = isset($this->_request->DATE_SID) ? $this->getDate($this->_request->DATE_SID) : "0000-00-00 00:00:00";
-
-            $info->save();
-
-            $array_data = array_intersect_key($_POST, $DB_user->info('metadata'));
-
-            if(!empty($_POST["PASSWD_INPUT"]))
-            {
-                $config_security = Zend_Controller_Front::getInstance()->getParam('bootstrap')->getOption('security');
-                $array_data["PASSWD_UTILISATEUR"] = md5($user->USERNAME_UTILISATEUR . $config_security['salt'] . $this->_request->PASSWD_INPUT);
+        if($this->_request->isPost()) {
+            try {
+                $post = $this->_request->getPost();
+                $service_user->save($post, $_FILES['avatar']);
+                $this->_helper->flashMessenger(array('context' => 'success', 'title' => 'Mise à jour réussie !', 'message' => 'L\'utilisateur a bien été ajouté.'));
+                $this->_helper->redirector('index', null, null);
             }
-            elseif(isset($this->_request->ldap_checkbox))
-            {
-                $array_data["PASSWD_UTILISATEUR"] = null;
-            }
-
-            $user->setFromArray($array_data)->save();
-            $iduser = $this->getRequest()->getParam('uid');
-        }
-        else
-        {
-            if ($this->_request->maire == 1)
-            {
-                if(empty($this->_request->NUMINSEE_COMMUNE))
-                {
-                    throw new Exception('Aucune commune donnée', 500);
-                }
-
-                $commune = $model->find($this->_request->NUMINSEE_COMMUNE)->current();
-
-                if ($commune != null)
-                {
-                    if ($commune->ID_UTILISATEURINFORMATIONS != 0 && $commune->ID_UTILISATEURINFORMATIONS != null)
-                    {
-                        $info = $DB_informations->find( $commune->ID_UTILISATEURINFORMATIONS )->current();
-                        $info->setFromArray(array_intersect_key($_POST, $DB_informations->info('metadata')));
-                        $id = $commune->ID_UTILISATEURINFORMATIONS;
-                    }
-                }
-                
-                $_POST["ID_GROUPE"] = 1;
-            }
-
-            if($id == null)
-            {
-                $id = $DB_informations->insert(array_intersect_key($_POST, $DB_informations->info('metadata')));
-                $info = $DB_informations->find( $id )->current();
-                $info->DATE_PRV2 = isset($this->_request->DATE_PRV2) ? $this->getDate($this->_request->DATE_PRV2) : "0000-00-00 00:00:00";
-                $info->DATE_RECYCLAGE = isset($this->_request->DATE_RECYCLAGE) ? $this->getDate($this->_request->DATE_RECYCLAGE) : "0000-00-00 00:00:00";
-                $info->DATE_SID = isset($this->_request->DATE_SID) ? $this->getDate($this->_request->DATE_SID) : "0000-00-00 00:00:00";
-                $info->save();
-
-                if ($this->_request->maire == 1)
-                {
-                    $commune->ID_UTILISATEURINFORMATIONS = $id;
-                    $commune->save();
-                }
-            }
-
-            $iduser = $DB_user->insert(array_merge(
-                array_intersect_key($_POST, $DB_user->info('metadata')),
-                array(
-                    "ID_UTILISATEURINFORMATIONS" => $id,
-                    "PASSWD_UTILISATEUR" => !empty($this->_request->PASSWD_INPUT) ? md5($this->_request->USERNAME_UTILISATEUR."7aec3ab8e8d025c19e8fc8b6e0d75227".$this->_request->PASSWD_INPUT) : null
-                )
-            ));
-        }
-
-        // Sauvegarde des commissions
-        if (isset($_POST["commissions"]))
-        {
-            $model_commissionsUser = new Model_DbTable_UtilisateurCommission;
-            $model_commissionsUser->delete("ID_UTILISATEUR = " .  $iduser);
-            foreach ($_POST["commissions"] as $id) {
-                $row = $model_commissionsUser->createRow();
-                $row->ID_UTILISATEUR = $iduser;
-                $row->ID_COMMISSION = $id;
-                $row->save();
+            catch(Exception $e) {
+                $this->_helper->flashMessenger(array('context' => 'error','title' => '','message' => 'L\'utilisateur n\'a pas ajouté. Veuillez rééssayez. (' . $e->getMessage() . ')'));
             }
         }
 
-        // Sauvegarde des groupements
-        if (isset($_POST["groupements"]))
-        {
-            $model_groupementsUser = new Model_DbTable_UtilisateurGroupement;
-            $model_groupementsUser->delete("ID_UTILISATEUR = " .  $iduser);
-            foreach ($_POST["groupements"] as $id) {
-                $row = $model_groupementsUser->createRow();
-                $row->ID_UTILISATEUR = $iduser;
-                $row->ID_GROUPEMENT = $id;
-                $row->save();
-            }
-        }
-        
-        // Redirection
-        $this->_helper->redirector('list');
+        $this->render('edit');
     }
 
-    /**
-     * Activer ou desactiver un utilisateur
-     *
-     */
-    public function activedAction()
-    {
-        // Modèle
-        $DB_user = new Model_DbTable_Utilisateur;
-        
-        // On trouve l'utilisateur à modifier
-        $user = $DB_user->find( $this->_request->uid )->current();
-        
-        // On change son état
-        $user->ACTIF_UTILISATEUR = !(bool) $user->ACTIF_UTILISATEUR;
-        $user->ACTIF_UTILISATEUR = (int) $user->ACTIF_UTILISATEUR;
-        
-        // On sauvegarde
-        $user->save();
-        
-        // Redirection
-        $this->_helper->redirector('list');
-    }
-    
-    /**
-     * Gestion des droits des utilisateurs
-     *
-     */
     public function matriceDesDroitsAction()
     {
+        $this->_helper->layout->setLayout('menu_admin');
+
         // Modèles
         $model_groupes = new Model_DbTable_Groupe;
         $model_resource = new Model_DbTable_Resource;
@@ -347,41 +93,35 @@ class UsersController extends Zend_Controller_Action
         $this->view->rowset_groupes = $model_groupes->fetchAll();
         $this->view->rowset_resources = $model_resource->fetchAll();
         $this->view->rowset_groupes_privilege = $model_groupes_privilege->fetchAll()->toArray();
-        
+
         // Si des données sont envoyées, on procède à leur traitement
-        if($this->_request->isPost())
-        {
-            try
-            {
-                foreach($this->_request->getParam('groupe') as $id_groupe => $privileges)
-                { 
-                    foreach($privileges as $id_privilege => $value_privilege)
-                    {
+        if ($this->_request->isPost()) {
+            try {
+                foreach ($this->_request->getParam('groupe') as $id_groupe => $privileges) {
+                    foreach ($privileges as $id_privilege => $value_privilege) {
                         $groupe_privilege_exists = $model_groupes_privilege->find($id_groupe, $id_privilege)->current() !== null;
-                        
-                        if($value_privilege == 1 && !$groupe_privilege_exists)
-                        {
+
+                        if ($value_privilege == 1 && !$groupe_privilege_exists) {
                             $row_groupe_priv = $model_groupes_privilege->createRow();
                             $row_groupe_priv->ID_GROUPE = $id_groupe;
                             $row_groupe_priv->id_privilege = $id_privilege;
                             $row_groupe_priv->save();
                         }
-                        
-                        if($value_privilege == 0 && $groupe_privilege_exists)
-                        {
+
+                        if ($value_privilege == 0 && $groupe_privilege_exists) {
                             $model_groupes_privilege->delete('ID_GROUPE = ' . $id_groupe . ' AND id_privilege = ' . $id_privilege);
                         }
                     }
                 }
-                
+                $cache = Zend_Controller_Front::getInstance()->getParam('bootstrap')->getResource('cache');
+                $cache->remove('acl');
+
                 $this->_helper->flashMessenger(array(
                     'context' => 'success',
                     'title' => 'Mise à jour réussie !',
                     'message' => 'La matrice des droits a bien été mise à jour.'
                 ));
-            }
-            catch(Exception $e)
-            {
+            } catch (Exception $e) {
                 $this->_helper->flashMessenger(array(
                     'context' => 'error',
                     'title' => 'Aie',
@@ -393,11 +133,374 @@ class UsersController extends Zend_Controller_Action
             $this->_helper->redirector('matrice-des-droits');
         }
     }
-    
-    private function getDate($input)
-    {
-        $array_date = explode("/", $input);
 
-        return $array_date[2]."-".$array_date[1]."-".$array_date[0]." 00:00:00";
+    public function editGroupAction()
+    {
+        $this->_helper->layout->setLayout('menu_admin');
+
+        $service_user = new Service_User;
+
+        $this->view->group = $service_user->getGroup($this->_request->gid);
+
+        $this->view->add = false;
+
+        if($this->_request->isPost()) {
+            try {
+                $post = $this->_request->getPost();
+                $service_user->saveGroup($post, $this->_request->gid);
+                $this->_helper->flashMessenger(array('context' => 'success', 'title' => 'Mise à jour réussie !', 'message' => 'Le groupe a bien été mis à jour.'));
+                $this->_helper->redirector('index', null, null);
+            }
+            catch(Exception $e) {
+                $this->_helper->flashMessenger(array('context' => 'error','title' => '','message' => 'Le groupe n\'a pas été mis à jour. Veuillez rééssayez. (' . $e->getMessage() . ')'));
+            }
+        }
+    }
+
+    public function addGroupAction()
+    {
+        $this->_helper->layout->setLayout('menu_admin');
+
+        $service_user = new Service_User;
+
+        $this->view->add = true;
+
+        if($this->_request->isPost()) {
+            try {
+                $post = $this->_request->getPost();
+                $service_user->saveGroup($post);
+                $this->_helper->flashMessenger(array('context' => 'success', 'title' => 'Mise à jour réussie !', 'message' => 'Le groupe a bien été ajouté.'));
+                $this->_helper->redirector('index', null, null);
+            }
+            catch(Exception $e) {
+                $this->_helper->flashMessenger(array('context' => 'error','title' => '','message' => 'Le groupe n\'a pas été ajouté. Veuillez rééssayez. (' . $e->getMessage() . ')'));
+            }
+        }
+
+        $this->render('edit-group');
+    }
+
+    public function deleteGroupAction()
+    {
+        $this->_helper->layout->setLayout('menu_admin');
+
+        $service_user = new Service_User;
+
+        $this->view->add = true;
+
+        try {
+            $post = $this->_request->getPost();
+            $service_user->deleteGroup($this->_request->gid);
+            $this->_helper->flashMessenger(array('context' => 'success','title' => 'Suppression réussie !','message' => 'Le groupe a été supprimé.'));
+        }
+        catch(Exception $e) {
+            $this->_helper->flashMessenger(array('context' => 'error','title' => '','message' => 'Erreur dans la suppression du groupe. Veuillez rééssayez. (' . $e->getMessage() . ')'));
+        }
+
+        $this->_helper->redirector('index', null, null);
+    }
+
+    public function ressourcesSpecialiseesAction()
+    {
+        $this->_helper->layout->setLayout('menu_admin');
+
+        $service_categorie = new Service_Categorie;
+        $service_type = new Service_TypeActivite;
+        $service_dossier = new Service_Dossier;
+        $service_genre = new Service_Genre;
+        $service_famille = new Service_Famille;
+        $service_classe = new Service_Classe;
+
+        $model_resource = new Model_DbTable_Resource;
+
+        // On met le libellé du type dans le tableau des activités
+        $types = $service_type->getAllWithTypes();
+        $types_sort = array();
+
+        foreach ($types as $_type) {
+            $types_sort[$_type['ID_TYPE']] = $_type;
+        }
+
+        $type_sort = array();
+
+        foreach ($types as $type) {
+            if (!array_key_exists($types_sort[$type["ID_TYPE"]]['LIBELLE_TYPE'], $type_sort)) {
+                $type_sort[$types_sort[$type["ID_TYPE"]]['LIBELLE_TYPE']] = array();
+            }
+
+            $type_sort[$types_sort[$type["ID_TYPE"]]['LIBELLE_TYPE']][] = $type;
+        }
+
+        $this->view->categories = $service_categorie->getAll();
+        $this->view->types = $type_sort;
+        $this->view->types_dossier = $service_dossier->getAllTypes();
+        $this->view->natures_dossier = $service_dossier->getAllNatures();
+        $this->view->genres = $service_genre->getAll();
+        unset($this->view->genres[0]);
+        $this->view->resources = $model_resource->fetchAll();
+        $this->view->familles = $service_famille->getAll();
+        $this->view->classements = $service_genre->getClassements();
+        $this->view->classes = $service_classe->getAll();
+    }
+
+    public function addRessourceSpecialiseeAction()
+    {
+        $this->_helper->layout->disableLayout();
+        $this->_helper->viewRenderer->setNoRender(true);
+
+        $model_resource = new Model_DbTable_Resource;
+        $model_privilege = new Model_DbTable_Privilege;
+
+        if($this->_request->isPost()) {
+            try {
+
+                $name = $text = '';
+
+                switch($this->_request->type_ressource) {
+                    case 'etablissement':
+
+                        switch($this->_request->genre) {
+                            case '2':
+                                $name = 'etablissement_erp_';
+                                $name .= (is_array($this->_request->types) ? implode($this->_request->types, '-') : '0') . '_';
+                                $name .= (is_array($this->_request->categories) ? implode($this->_request->categories, '-') : '0') . '_';
+                                $name .= $this->_request->commissions . '_';
+                                $name .= $this->_request->groupements . '_';
+                                $name .= $this->_request->commune;
+
+                                if(is_array($this->_request->types)) {
+                                    $array = $this->_request->types;
+                                    array_walk($array, function(&$val, $key) use(&$array){
+                                        $service_type = new Service_TypeActivite;
+                                        $tmp_types = $service_type->getAll();
+                                        $types = array();
+                                        foreach($tmp_types as $t) {
+                                            $types[$t['ID_TYPEACTIVITE']] = $t['LIBELLE_ACTIVITE'];
+                                        }
+                                        $array[$key] = $types[$val];
+                                    });
+                                }
+
+                                $text = 'Établissement (';
+                                $text .= (is_array($this->_request->types) ? 'Types ' . implode($array, '-') : 'Tous les types') . ' - ';
+                                $text .= (is_array($this->_request->categories) ? 'Catégories ' . implode($this->_request->categories, '-') : 'Toutes les catégories') . ' - ';
+                                $text .= ($this->_request->commissions == 0 ? 'Ignorer les commissions' : 'Sur les commissions de l\'utilisateur') . ' - ';
+                                $text .= ($this->_request->groupements == 0 ? 'Ignorer les groupements' : 'Sur les groupements de l\'utilisateur') . ' - ';
+                                $text .= ($this->_request->commune == 0 ? 'Ignorer la commune' : 'Sur la commune de l\'utilisateur');
+                                $text .= ')';
+                                break;
+
+                            case '3':
+                                $name = 'etablissement_cell_';
+                                $name .= (is_array($this->_request->types) ? implode($this->_request->types, '-') : '0') . '_';
+                                $name .= (is_array($this->_request->categories) ? implode($this->_request->categories, '-') : '0');
+
+                                if(is_array($this->_request->types)) {
+                                    $array = $this->_request->types;
+                                    array_walk($array, function(&$val, $key) use(&$array){
+                                        $service_type = new Service_TypeActivite;
+                                        $tmp_types = $service_type->getAll();
+                                        $types = array();
+                                        foreach($tmp_types as $t) {
+                                            $types[$t['ID_TYPEACTIVITE']] = $t['LIBELLE_ACTIVITE'];
+                                        }
+                                        $array[$key] = $types[$val];
+                                    });
+                                }
+
+                                $text = 'Cellule (';
+                                $text .= (is_array($this->_request->types) ? 'Types ' . implode($array, '-') : 'Tous les types') . ' - ';
+                                $text .= (is_array($this->_request->categories) ? 'Catégories ' . implode($this->_request->categories, '-') : 'Toutes les catégories');
+                                $text .= ')';
+                                break;
+
+                            case '4':
+                                $name = 'etablissement_hab_';
+                                $name .= (is_array($this->_request->familles) ? implode($this->_request->familles, '-') : '0') . '_';
+                                $name .= $this->_request->groupements . '_';
+                                $name .= $this->_request->commune;
+
+                                if(is_array($this->_request->familles)) {
+                                    $array = $this->_request->familles;
+                                    array_walk($array, function(&$val, $key) use(&$array){
+                                        $service_famille = new Service_Famille;
+                                        $tmp_familles = $service_famille->getAll();
+                                        $familles = array();
+                                        foreach($tmp_familles as $t) {
+                                            $types[$t['ID_FAMILLE']] = $t['LIBELLE_FAMILLE'];
+                                        }
+                                        $array[$key] = $familles[$val];
+                                    });
+                                }
+
+                                $text = 'Habitation (';
+                                $text .= (is_array($this->_request->familles) ? 'Familles ' . implode($array, '-') : 'Toutes les familles') . ' - ';
+                                $text .= ($this->_request->groupements == 0 ? 'Ignorer les groupements' : 'Sur les groupements de l\'utilisateur') . ' - ';
+                                $text .= ($this->_request->commune == 0 ? 'Ignorer la commune' : 'Sur la commune de l\'utilisateur');
+                                $text .= ')';
+                                break;
+
+                            case '5':
+                                $name = 'etablissement_igh_';
+                                $name .= (is_array($this->_request->classes) ? implode($this->_request->classes, '-') : '0') . '_';
+                                $name .= $this->_request->commissions . '_';
+                                $name .= $this->_request->groupements . '_';
+                                $name .= $this->_request->commune;
+
+                                if(is_array($this->_request->classes)) {
+                                    $array = $this->_request->classes;
+                                    array_walk($array, function(&$val, $key) use(&$array){
+                                        $service_classe = new Service_Classe;
+                                        $tmp_classes = $service_classe->getAll();
+                                        $classes = array();
+                                        foreach($tmp_classes as $t) {
+                                            $classes[$t['ID_CLASSE']] = $t['LIBELLE_CLASSE'];
+                                        }
+                                        $array[$key] = $classes[$val];
+                                    });
+                                }
+
+                                $text = 'IGH (';
+                                $text .= (is_array($this->_request->classes) ? 'Classes ' . implode($array, '-') : 'Toutes les classes') . ' - ';
+                                $text .= ($this->_request->commissions == 0 ? 'Ignorer les commissions' : 'Sur les commissions de l\'utilisateur') . ' - ';
+                                $text .= ($this->_request->groupements == 0 ? 'Ignorer les groupements' : 'Sur les groupements de l\'utilisateur') . ' - ';
+                                $text .= ($this->_request->commune == 0 ? 'Ignorer la commune' : 'Sur la commune de l\'utilisateur');
+                                $text .= ')';
+                                break;
+
+                            case '6':
+                                $name = 'etablissement_eic_';
+                                $name .= $this->_request->groupements . '_';
+                                $name .= $this->_request->commune;
+
+                                $text = 'EIC (';
+                                $text .= ($this->_request->groupements == 0 ? 'Ignorer les groupements' : 'Sur les groupements de l\'utilisateur') . ' - ';
+                                $text .= ($this->_request->commune == 0 ? 'Ignorer la commune' : 'Sur la commune de l\'utilisateur');
+                                $text .= ')';
+                                break;
+                            
+                            case '7':
+                                $name = 'etablissement_camp_';
+                                $name .= $this->_request->groupements . '_';
+                                $name .= $this->_request->commune;
+                                
+                                $text = 'Camping (';
+                                $text .= ($this->_request->groupements == 0 ? 'Ignorer les groupements' : 'Sur les groupements de l\'utilisateur') . ' - ';
+                                $text .= ($this->_request->commune == 0 ? 'Ignorer la commune' : 'Sur la commune de l\'utilisateur');
+                                $text .= ')';
+                                break;
+                            
+                            case '8':
+                                $name = 'etablissement_temp_';
+                                $name .= $this->_request->groupements . '_';
+                                $name .= $this->_request->commune;
+                                
+                                $text = 'Manifestation temporaire (';
+                                $text .= ($this->_request->groupements == 0 ? 'Ignorer les groupements' : 'Sur les groupements de l\'utilisateur') . ' - ';
+                                $text .= ($this->_request->commune == 0 ? 'Ignorer la commune' : 'Sur la commune de l\'utilisateur');
+                                $text .= ')';
+                                break;
+                            
+                            case '9':
+                                $name = 'etablissement_iop_';
+                                $name .= $this->_request->groupements . '_';
+                                $name .= $this->_request->commune;
+                                
+                                $text = 'IOP (';
+                                $text .= ($this->_request->groupements == 0 ? 'Ignorer les groupements' : 'Sur les groupements de l\'utilisateur') . ' - ';
+                                $text .= ($this->_request->commune == 0 ? 'Ignorer la commune' : 'Sur la commune de l\'utilisateur');
+                                $text .= ')';
+                                break;
+                            
+                            case '10':
+                                $name = 'etablissement_zone_';
+                                $name .= (is_array($this->_request->classements) ? implode($this->_request->classements, '-') : '0') . '_';
+                                $name .= $this->_request->groupements . '_';
+                                $name .= $this->_request->commune;
+                                
+                                if(is_array($this->_request->classements)) {
+                                    $array = $this->_request->classements;
+                                    array_walk($array, function(&$val, $key) use(&$array){
+                                        $service_genre = new Service_Genre;
+                                        $tmp_classement = $service_genre->getClassements();
+                                        $classement = array();
+                                        foreach($tmp_classement as $t) {
+                                            $classement[$t['ID_CLASSEMENT']] = $t['LIBELLE_CLASSEMENT'];
+                                        }
+                                        $array[$key] = $classement[$val];
+                                    });
+                                }
+                                
+                                $text = 'Zone (';
+                                $text .= (is_array($this->_request->classements) ? 'Classes ' . implode($array, '-') : 'Tous les classements') . ' - ';
+                                $text .= ($this->_request->groupements == 0 ? 'Ignorer les groupements' : 'Sur les groupements de l\'utilisateur') . ' - ';
+                                $text .= ($this->_request->commune == 0 ? 'Ignorer la commune' : 'Sur la commune de l\'utilisateur');
+                                $text .= ')';
+                                break;
+                        }
+
+                        $id_resource = $model_resource->createRow(array('name' => $name, 'text' => $this->_request->text == '' ? $text : $this->_request->text))->save();
+                        $model_privilege->createRow(array('name' => 'view_ets', 'text' => 'Lecture', 'id_resource' => $id_resource))->save();
+                        $model_privilege->createRow(array('name' => 'edit_ets', 'text' => 'Modifier', 'id_resource' => $id_resource))->save();
+
+                        break;
+
+                    case 'dossier':
+                        $name = 'dossier_';
+                        $name .= (is_array($this->_request->dossier_natures) ? implode($this->_request->dossier_natures, '-') : '0');
+
+                        if(is_array($this->_request->dossier_natures)) {
+                            $array = $this->_request->dossier_natures;
+                            array_walk($array, function(&$val, $key) use(&$array){
+                                $service_dossier = new Service_Dossier;
+                                $tmp_natures = $service_dossier->getAllNatures();
+                                $natures = array();
+                                foreach($tmp_natures as $n) {
+                                    $natures[$n['ID_DOSSIERNATURE']] = $n['LIBELLE_DOSSIERNATURE'];
+                                }
+                                $array[$key] = $natures[$val];
+                            });
+                        }
+
+                        $text = 'Dossier (';
+                        $text .= (is_array($this->_request->dossier_natures) ? 'Natures ' . implode($array, '-') : 'Toutes les natures');
+                        $text .= ')';
+
+                        $id_resource = $model_resource->createRow(array('name' => $name, 'text' => $this->_request->text == '' ? $text : $this->_request->text))->save();
+                        $model_privilege->createRow(array('name' => 'view_doss', 'text' => 'Lecture', 'id_resource' => $id_resource))->save();
+                        $model_privilege->createRow(array('name' => 'edit_doss', 'text' => 'Modifier', 'id_resource' => $id_resource))->save();
+                        $model_privilege->createRow(array('name' => 'verrouillage_dossier', 'text' => 'Verrouillage d\'un dossier', 'id_resource' => $id_resource))->save();
+
+                        break;
+                }
+
+                $this->_helper->flashMessenger(array('context' => 'success', 'title' => 'Ajout réussi !', 'message' => 'La ressource a bien été ajoutée.'));
+            }
+            catch(Exception $e) {
+                $this->_helper->flashMessenger(array('context' => 'error', 'title' => 'Ajout annulé', 'message' => 'La ressource n\'a été ajoutée. Veuillez rééssayez. (' . $e->getMessage() . ')'));
+            }
+
+            $this->_helper->redirector('ressources-specialisees');
+        }
+    }
+
+    public function deleteRessourceSpecialiseeAction()
+    {
+        $this->_helper->layout->disableLayout();
+        $this->_helper->viewRenderer->setNoRender(true);
+
+        $model_resource = new Model_DbTable_Resource;
+
+        if($this->_request->isGet()) {
+            try {
+                $model_resource->find($this->_request->id)->current()->delete();
+                $this->_helper->flashMessenger(array('context' => 'success', 'title' => 'Suppression réussie !', 'message' => 'La ressource a bien été supprimée.'));
+            }
+            catch(Exception $e) {
+                $this->_helper->flashMessenger(array('context' => 'error', 'title' => 'Suppression annulée', 'message' => 'La ressource n\'a été supprimée. Veuillez rééssayez. (' . $e->getMessage() . ')'));
+            }
+
+            $this->_helper->redirector('ressources-specialisees');
+        }
     }
 }

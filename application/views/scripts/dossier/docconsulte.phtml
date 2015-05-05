@@ -54,12 +54,18 @@ $.fn.ajoutDocDialog = function(idNatureDoc) {
 			//VERIFICATION SUR L'integrité des données &| chargement icone
 		},
 		success: function(affichageResultat){
-			//alert("#listeDocs_"+idNatureDoc); 
-			$("#listeDocs_"+idNatureDoc+" > li:last").after(affichageResultat);
+			//alert("#listeDocs_"+idNatureDoc);
+			if($("#listeDocs_"+idNatureDoc).html() != '')
+			{
+				$("#listeDocs_"+idNatureDoc+" > li:last").after(affichageResultat);
+			}else{
+				$("#listeDocs_"+idNatureDoc).append(affichageResultat);
+			}
+			
 
 			$("#libelleNewDoc").attr('value','');
 			$("#dossier_Pdroite").activeCheck('qsd');
-	
+			
 			return false;
 		},
 		error: function(){
@@ -155,11 +161,13 @@ $(".validDoc").live('click',function(){
 });
 
 $(document).ready(function(){
-	//$("#listeDocs_1 > li").each(function(){
+	var idDiv = $(".nature").attr('id');
+	
 	$($(".divDoc").get().reverse()).each(function(){
 		var valeurDiv;
 		var idLi;
 		var idLiTab;
+		//alert();
 		if($(this).find("input:checkbox").prop('checked'))
 		{
 			idLi = "";
@@ -167,7 +175,7 @@ $(document).ready(function(){
 			
 			valeurDiv = $(this).html();
 			idLiTab = $(this).find("input:checkbox").attr('id').split("_");
-			
+			//alert(idLiTab);
 			if(idLiTab.length == 3)
 			{
 				idLi = idLiTab[1]+"_"+idLiTab[2];			
@@ -179,19 +187,14 @@ $(document).ready(function(){
 			
 			$(this).next().remove();
 			$(this).remove();
-			$("#listeDocs_1").prepend('<li id="1_1" class="divDoc row-fluid span12" style="display: block; height: 25px;margin: 15px;" name="divDoc">'+valeurDiv+'</li><br class="clear">');
+			$("#listeDocs_"+idDiv).prepend('<li id="'+idLi+'" class="divDoc row-fluid span12" style="display: block; margin: 0 15px 15px 15px;" name="divDoc">'+valeurDiv+'</li><br class="clear">');
 		}
 	});
 });
-
 </script>
 <?php
 
-echo $this->headScript()->appendFile('/js/dossier/dossierDocConsulte.js','text/javascript');
-/*
- TRUNCATE TABLE `listedocajout`;
- TRUNCATE TABLE `dossierdocconsulte`;
-*/
+
 echo "
 	<div id='dossier_Pdroite' class='divDocConsulte'>
 		<form name='docConsulteForm' id='docConsulteForm' method='post' action='' class='grid_15'>
@@ -211,37 +214,44 @@ foreach($this->listeNatures as $index => $nature){
 			<p class='span2'><strong>Reférence</strong></p>
 			<p class='span2'><strong>Date</strong></p>
 			<br class='clear' />
-			<ul id='listeDocs_".$nature["ID_NATURE"]."'>
-	";
+			<ul id='listeDocs_".$nature["ID_NATURE"]."'>";
 	
 	//on boucle sur les documents de base à afficher
-	foreach($this->listeDocs[$nature["ID_NATURE"]] as $document){
-		$exist = false;	
-		foreach($this->dossierDocConsutle[$nature["ID_NATURE"]] as $docExistant){
-			if($docExistant['ID_DOC'] == $document['ID_DOC']){
-				$exist = true;
-				$ref = $docExistant['REF_CONSULTE'];
-				$date = $docExistant['DATE_CONSULTE'];
+	if(count($this->listeDocs[$nature["ID_NATURE"]]) > 0)
+	{
+		$cpt = 0;
+		foreach($this->listeDocs[$nature["ID_NATURE"]] as $document){
+			$exist = false;
+			foreach($this->dossierDocConsutle[$nature["ID_NATURE"]] as $docExistant){
+				if($docExistant['ID_DOC'] == $document['ID_DOC']){
+					$exist = true;
+					$ref = $docExistant['REF_CONSULTE'];
+					$date = $docExistant['DATE_CONSULTE'];
+				}
 			}
-		}
-		if($exist){
-			echo $this->afficheDoc($nature["ID_NATURE"],$document['ID_DOC'],$document['LIBELLE_DOC'],$ref,$date);
-		}else{
-			echo $this->afficheDoc($nature["ID_NATURE"],$document['ID_DOC'],$document['LIBELLE_DOC']);
+			
+			if($exist){
+				echo $this->afficheDoc($this->infosDossier['VERROU_DOSSIER'],$nature["ID_NATURE"],$document['ID_DOC'],$document['LIBELLE_DOC'],$ref,$date);
+			}else{
+				echo $this->afficheDoc($this->infosDossier['VERROU_DOSSIER'],$nature["ID_NATURE"],$document['ID_DOC'],$document['LIBELLE_DOC']);
+			}
+
+			$cpt++;
 		}
 	}
-	
+
 	//on boucle sur les documents ajoutés à afficher
 	foreach($this->listeDocsAjout[$nature["ID_NATURE"]] as $documentAjout)
-		echo $this->afficheDoc($nature["ID_NATURE"],$documentAjout['ID_DOCAJOUT'],$documentAjout['LIBELLE_DOCAJOUT'],$documentAjout['REF_DOCAJOUT'],$documentAjout['DATE_DOCAJOUT'],"_aj");
+		echo $this->afficheDoc($this->infosDossier['VERROU_DOSSIER'],$nature["ID_NATURE"],$documentAjout['ID_DOCAJOUT'],$documentAjout['LIBELLE_DOCAJOUT'],$documentAjout['REF_DOCAJOUT'],$documentAjout['DATE_DOCAJOUT'],"_aj");
 
-	echo "
-			</ul>
+	if($this->infosDossier['VERROU_DOSSIER'] == 0){
+		echo "</ul>
+				<hr class='clear' />
+				<p><a href='' id='docAjout_".$nature["ID_NATURE"]."' class='docAjout' >+ Ajouter un nouveau document</a></p>
+			</div>
 			<hr class='clear' />
-			<p><a href='' id='docAjout_".$nature["ID_NATURE"]."' class='docAjout' >+ Ajouter un nouveau document</a></p>
-		</div>
-		<hr class='clear' />
-	";
+		";
+	}
 }
 
 echo "

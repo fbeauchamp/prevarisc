@@ -3,13 +3,13 @@
 	<a id='button-aud' class='btn' >Ajouter un document</a>
 </span>
 
-<h2>Gestion des documents</h2>
+<h3 class='page-header'>Gestion des documents</h3>
 <div id='infosGdd'></div>
 
 <?php if(empty($this->listeFichiers)) : ?>
 <p><strong>Aucun document disponible.</strong></p>
 <?php else : ?>
-<table id='documentType' class='table'>
+<table id='documentType' class='table table-bordered'>
     <thead>
         <tr style='height:20px;'>
             <th>
@@ -24,10 +24,10 @@
     <?php foreach($this->listeFichiers as $lien) : ?>
     <tr style='height:20px;'>
         <td>
-            <a href='<?php echo $this->path . "/" . $lien ?>'><?php echo $lien ?></a>
+            <a href="<?php echo $this->path . "/" . $lien ?>"><?php echo $lien ?></a>
         </td>
         <td>
-            <a href='/' class='supp' id='<?php echo $lien ?>'>Suppression du document</a>
+            <a href='#' class='supp' id="<?php echo $lien ?>">Suppression du document</a>
         </td>
     </tr>
     <?php endforeach ?>
@@ -108,7 +108,7 @@ $(document).ready(function() {
 
 		var dialog_supp = $("<div id='dialog-supp'></div>").appendTo("body");
 		
-		dialog_supp.html("Vous êtes sur le point de supprimer le fichier "+nomFichier+".<br/> Une fois ce fichier supprimé il ne pourra plus être utilisé lors de la génération des rapports.");
+		dialog_supp.html("Vous êtes sur le point de supprimer le fichier \""+nomFichier+"\".<br/> Une fois ce fichier supprimé il ne pourra plus être utilisé lors de la génération des rapports.");
 
 		dialog_supp.dialog({
 			title: "Suppresion document",
@@ -122,24 +122,25 @@ $(document).ready(function() {
 					$.ajax({
 						type: "POST",
 						url: "/gestion-des-documents/suppdoc",
-						data:"name="+nomFichier,
+						data:{
+                                                    name:nomFichier
+                                                },
 						success: function(msg){					
 							//suppression de la ligne
 							elementDoc.parent().parent().remove();
-							alert(msg);
+							//alert(msg);
 						}
 					});
 
 
 					
-					dialog_supp.dialog("destroy");
+					dialog_supp.dialog("close");
                     $("#dialog-supp").html('');
 					return false;
 				},
 				"Annuler": function() {
-					dialog_supp.dialog("destroy");
+					dialog_supp.dialog("close");
                     $("#dialog-supp").html('');
-					return false;
 				}
 			}
 		});

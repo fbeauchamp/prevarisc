@@ -1,33 +1,33 @@
 <?php
 
-    class GestionDesCommissionsController extends Zend_Controller_Action
+class GestionDesCommissionsController extends Zend_Controller_Action
+{
+    public function indexAction()
     {
-        // Page d'acceuil
-        public function indexAction()
-        {
-            // Titre
-            $this->view->title = "Gestion des commissions";
-            
-            $this->_helper->layout->setLayout('menu_left');
+        // Titre
+        $this->view->title = "Gestion des commissions";
 
-            // Modèles de données
-            $model_typesDesCommissions = new Model_DbTable_CommissionType;
+        $this->_helper->layout->setLayout('menu_admin');
 
-            $this->view->rowset_typesDesCommissions = $model_typesDesCommissions->fetchAll();
-        }
+        // Modèles de données
+        $model_typesDesCommissions = new Model_DbTable_CommissionType;
 
-        public function formAction()
-        {
-            // Modèles de données
-            $model_typesDesCommissions = new Model_DbTable_CommissionType;
-            $model_commissions = new Model_DbTable_Commission;
+        $this->view->rowset_typesDesCommissions = $model_typesDesCommissions->fetchAll();
+    }
 
-            $this->view->rowset_typesDesCommissions = $model_typesDesCommissions->fetchAll();
-            $this->view->rowset_commissions = $model_commissions->fetchAll();
-        }
+    public function formAction()
+    {
+        // Modèles de données
+        $model_typesDesCommissions = new Model_DbTable_CommissionType;
+        $model_commissions = new Model_DbTable_Commission;
 
-        public function saveAction()
-        {
+        $this->view->rowset_typesDesCommissions = $model_typesDesCommissions->fetchAll();
+        $this->view->rowset_commissions = $model_commissions->fetchAll();
+    }
+
+    public function saveAction()
+    {
+        try {
             $this->_helper->viewRenderer->setNoRender();
 
             // Modèles de données
@@ -47,24 +47,37 @@
                     $item->save();
                 }
             }
+
+            $this->_helper->flashMessenger(array(
+                'context' => 'success',
+                'title' => 'Les informations ont été sauvegardées',
+                'message' => ''
+            ));
+        } catch (Exception $e) {
+            $this->_helper->flashMessenger(array(
+                'context' => 'error',
+                'title' => 'Erreur lors de la sauvegarde',
+                'message' => $e->getMessage()
+            ));
         }
+    }
 
-        // Récupération des commission avec un type donné
-        public function getCommissionsAction()
-        {
-            // Modèles de données
-            $model_commission = new Model_DbTable_Commission;
-            $model_typesDesCommissions = new Model_DbTable_CommissionType;
+    public function getCommissionsAction()
+    {
+        // Modèles de données
+        $model_commission = new Model_DbTable_Commission;
+        $model_typesDesCommissions = new Model_DbTable_CommissionType;
 
-            // On récupère les commissions du type demandé
-            $this->view->rowset_commissions = $model_commission->fetchAll("ID_COMMISSIONTYPE = " . $this->_request->id_type_des_commissions );
+        // On récupère les commissions du type demandé
+        $this->view->rowset_commissions = $model_commission->fetchAll("ID_COMMISSIONTYPE = " . $this->_request->id_type_des_commissions );
 
-            // On récupère le type
-            $this->view->row_typeDesCommissions = $model_typesDesCommissions->fetchRow("ID_COMMISSIONTYPE = " . $this->_request->id_type_des_commissions);
-        }
+        // On récupère le type
+        $this->view->row_typeDesCommissions = $model_typesDesCommissions->fetchRow("ID_COMMISSIONTYPE = " . $this->_request->id_type_des_commissions);
+    }
 
-        public function addCommissionAction()
-        {
+    public function addCommissionAction()
+    {
+        try {
             // Modèle
             $DB_commission = new Model_DbTable_Commission;
 
@@ -86,5 +99,18 @@
             }
 
             $this->view->tid = $_GET["tid"];
+
+            $this->_helper->flashMessenger(array(
+                'context' => 'success',
+                'title' => 'La commission a bien été sauvegardée',
+                'message' => ''
+            ));
+        } catch (Exception $e) {
+            $this->_helper->flashMessenger(array(
+                'context' => 'error',
+                'title' => 'Erreur lors de la sauvegarde',
+                'message' => $e->getMessage()
+            ));
         }
     }
+}

@@ -2,89 +2,112 @@
 
 class IndexController extends Zend_Controller_Action
 {
-    /**
-     * Page d'accueil
-     *
-     */
+
     public function indexAction()
     {
-        // Définition du layout
-        $this->_helper->layout->setLayout('menu_left');
+        $service_user = new Service_User;
+        $service_dashboard = new Service_Dashboard;
+        $blocsConfig = $service_dashboard->getBlocConfig();
         
-        // Modèles
-        $DB_messages = new Model_DbTable_News;
-        $DB_groupe = new Model_DbTable_Groupe;
-        
-        // Récupération du fil d'actualité pour l'utilisateur
-        $this->view->flux = $DB_messages->getNews(Zend_Auth::getInstance()->getIdentity()->ID_GROUPE);
-        
-        // Récupération de l'ensemble des groupes
-        $this->view->groupes = $DB_groupe->fetchAll()->toArray();
+        $identity = Zend_Auth::getInstance()->getIdentity();
+        $user = $service_user->find($identity['ID_UTILISATEUR']);
+        $cache = Zend_Controller_Front::getInstance()->getParam('bootstrap')->getResource('cache');
+        $acl = unserialize($cache->load('acl'));
+        $profil = $user['group']['LIBELLE_GROUPE'];
+        $blocs = array();
+        foreach($blocsConfig as $blocId => $blocConfig) {
+            if (!$blocConfig['acl'] || ($acl->isAllowed($profil, $blocConfig['acl'][0], $blocConfig['acl'][1]))) {
+                $method = $blocConfig['method'];
+                $blocs[$blocId] = array(
+                    'type' => $blocConfig['type'],
+                    'title' => $blocConfig['title'],
+                    'height' => $blocConfig['height'],
+                    'width' => $blocConfig['width'],
+                );
+            }
+        }
+
+        // determine the bloc order
+        // user preferences
+        if (isset($user['preferences']['DASHBOARD_BLOCS'])
+        && $user['preferences']['DASHBOARD_BLOCS']
+        && $blocsOrder = json_decode($user['preferences']['DASHBOARD_BLOCS'])
+        ) {
+            // treat the case where there will be new bloc added
+            foreach(array_keys($blocsConfig) as $defaultBloc) {
+                if (!in_array($defaultBloc, $blocsOrder)) {
+                    $blocsOrder[] = $defaultBloc;
+                }
+            }
+        } else {
+            $blocsOrder = array_keys($blocsConfig);
+        }
+
+        $this->view->user = $user;
+        $this->view->blocs = $blocs;
+        $this->view->blocsOrder = $blocsOrder;
+        $this->view->inlineScript()->appendFile("/js/jquery.packery.pkgd.min.js");
+        $this->_helper->layout->setLayout('index');
+        $this->render('index');
     }
     
-    /**
-     * Ajouter un message dans le feed
-     *
-     */
-    public function addMessageAction()
+    public function blocAction()
     {
-        try
-        {
-            // Modèle
-            $model = new Model_DbTable_News;
-            
-            // On ajoute la news dans la db
-            $model->add($this->_request->getParam('type'), $this->_request->getParam('text'), $this->_request->getParam('conf') );
-            
-            $this->_helper->flashMessenger(array(
-                'context' => 'success',
-                'title' => 'Ajout réussi !',
-                'message' => 'Le message a bien été ajouté.'
-            ));
-        }
-        catch(Exception $e)
-        {
-            $this->_helper->flashMessenger(array(
-                'context' => 'error',
-                'title' => 'Aie',
-                'message' => $e->getMessage()
-            ));
+        $this->_helper->layout->disableLayout();
+        
+        $id = $this->getParam('id');
+        
+        $bloc = array();
+        $service_user = new Service_User;
+        $service_dashboard = new Service_Dashboard;
+        $blocsConfig = $service_dashboard->getBlocConfig();
+        
+        if (isset($blocsConfig[$id])) {
+            $blocConfig = $blocsConfig[$id];
+            $identity = Zend_Auth::getInstance()->getIdentity();
+            $user = $service_user->find($identity['ID_UTILISATEUR']);
+            $service = new $blocConfig['service'];
+            $method = $blocConfig['method'];
+            $bloc = array(
+                'id' => $id,
+                'data' => $service->$method($user),
+                'type' => $blocConfig['type'],
+                'title' => $blocConfig['title'],
+                'height' => $blocConfig['height'],
+                'width' => $blocConfig['width'],
+            );
         }
         
-        // Redirection
-        $this->_helper->redirector('index');
+        $this->view->bloc = $bloc;
     }
 
-    /**
-     * Supprimer un message du feed
-     *
-     */
+    public function addMessageAction()
+    {
+        $service_feed = new Service_Feed;
+        $service_user = new Service_User;
+
+        $this->view->groupes = $service_user->getAllGroupes();
+        if ($this->_request->isPost()) {
+            try {
+                $service_feed->addMessage($this->_request->getParam('type'), $this->_request->getParam('text'), Zend_Auth::getInstance()->getIdentity()['ID_UTILISATEUR'], $this->_request->getParam('conf') );
+                $this->_helper->flashMessenger(array('context' => 'success','title' => 'Message ajouté !','message' => 'Le message a bien été ajouté.'));
+            } catch (Exception $e) {
+                $this->_helper->flashMessenger(array('context' => 'danger','title' => 'Erreur !','message' => 'Erreur lors de l\'ajout du message : ' . $e->getMessage()));
+            }
+            $this->_helper->redirector('index', 'index');
+        }
+    }
+
     public function deleteMessageAction()
     {
-        try
-        {
-            // Modèle
-            $model = new Model_DbTable_News;
+        $service_feed = new Service_Feed;
 
-            // On supprime la news dans la db
-            $news = $model->deleteNews($this->_request->getParam('id'));
-            
-            $this->_helper->flashMessenger(array(
-                'context' => 'success',
-                'title' => 'Suppression réussie !',
-                'message' => 'Le message a bien été supprimé.'
-            ));
+        try {
+            $service_feed->deleteMessage($this->_request->getParam('id'));
+            $this->_helper->flashMessenger(array('context' => 'success','title' => 'Message supprimé !','message' => 'Le message a bien été supprimé.'));
+        } catch (Exception $e) {
+            $this->_helper->flashMessenger(array('context' => 'danger','title' => 'Erreur !','message' => 'Erreur lors de la suppression du message : ' . $e->getMessage()));
         }
-        catch(Exception $e)
-        {
-            $this->_helper->flashMessenger(array(
-                'context' => 'error',
-                'title' => 'Aie',
-                'message' => $e->getMessage()
-            ));
-        }
-        
-        // Redirection
-        $this->_helper->redirector('index');
+        $this->_helper->redirector('index', 'index');
     }
 }

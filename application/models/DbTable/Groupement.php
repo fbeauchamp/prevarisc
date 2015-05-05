@@ -35,6 +35,28 @@ class Model_DbTable_Groupement extends Zend_Db_Table_Abstract
 
         return ( $this->fetchRow( $select ) != null ) ? $this->fetchRow( $select ) : null;
     }
+    
+    public function getByLibelle($libelle)
+    {
+        $select = "SELECT groupement.*, groupementtype.LIBELLE_GROUPEMENTTYPE, utilisateurinformations.*
+                    FROM groupement 
+                    INNER JOIN groupementtype ON groupement.ID_GROUPEMENTTYPE = groupementtype.ID_GROUPEMENTTYPE 
+                    LEFT JOIN utilisateurinformations ON utilisateurinformations.ID_UTILISATEURINFORMATIONS = groupement.ID_UTILISATEURINFORMATIONS 
+                    WHERE (groupement.LIBELLE_GROUPEMENT = '".$libelle."');";
+        //echo $select;
+        //Zend_Debug::dump($DB_information->fetchRow($select));
+        return $this->getAdapter()->fetchAll($select);
+    }
+    
+    public function getByLibelle2($libelle, $libelleGroupementType)
+    {
+        $select = "SELECT groupement.*, groupementtype.LIBELLE_GROUPEMENTTYPE, utilisateurinformations.*
+                    FROM groupement 
+                    INNER JOIN groupementtype ON groupement.ID_GROUPEMENTTYPE = groupementtype.ID_GROUPEMENTTYPE 
+                    LEFT JOIN utilisateurinformations ON utilisateurinformations.ID_UTILISATEURINFORMATIONS = groupement.ID_UTILISATEURINFORMATIONS 
+                    WHERE (groupement.LIBELLE_GROUPEMENT = '".$libelle."' and groupementtype.LIBELLE_GROUPEMENTTYPE = '".$libelleGroupementType."');";
+       return $this->getAdapter()->fetchAll($select);
+    }
 
     public function deleteGroupement($id)
     {
@@ -57,26 +79,30 @@ class Model_DbTable_Groupement extends Zend_Db_Table_Abstract
 
     }
 
-    public function getPreventionnistesByGpt($gpts)
+    public function getPreventionnistesByGpt($groupements)
     {
-        $array_result = array();
+        $preventionnistes_par_gpt = array();
 
-        foreach ($gpts as $gpt) {
-            $select = $this	->select()
-                            ->setIntegrityCheck(false)
-                            ->from("groupementpreventionniste")
-                            ->join("utilisateur", "utilisateur.ID_UTILISATEUR = groupementpreventionniste.ID_UTILISATEUR")
-                            ->join("utilisateurinformations", "utilisateurinformations.ID_UTILISATEURINFORMATIONS = utilisateur.ID_UTILISATEURINFORMATIONS")
-                            ->where("groupementpreventionniste.ID_GROUPEMENT = '".$gpt['ID_GROUPEMENT']."'")
-                            ->order("utilisateurinformations.NOM_UTILISATEURINFORMATIONS ASC");
+        foreach ($groupements as $groupement) {
 
-            $result = $this->fetchAll($select)->toArray();
+            $select = $this->select()
+                ->setIntegrityCheck(false)
+                ->from("groupementpreventionniste", null)
+                ->join("utilisateur", "utilisateur.ID_UTILISATEUR = groupementpreventionniste.ID_UTILISATEUR")
+                ->join("utilisateurinformations", "utilisateurinformations.ID_UTILISATEURINFORMATIONS = utilisateur.ID_UTILISATEURINFORMATIONS")
+                ->where("groupementpreventionniste.ID_GROUPEMENT = ?", $groupement['ID_GROUPEMENT'])
+                ->order("utilisateurinformations.NOM_UTILISATEURINFORMATIONS ASC");
 
-            if(count($result)>0)
-                $array_result[] = $result;
+            $rowset = $this->fetchAll($select);
+
+            if($rowset == null) {
+                continue;
+            }
+
+            $preventionnistes_par_gpt[$groupement['ID_GROUPEMENT']] = $rowset->toArray();
         }
 
-        return array_unique($array_result);
+        return $preventionnistes_par_gpt;
     }
 
     public function getGroupementParVille($code_insee)
@@ -87,7 +113,34 @@ class Model_DbTable_Groupement extends Zend_Db_Table_Abstract
                         ->joinInner("groupementcommune", "groupementcommune.ID_GROUPEMENT = groupement.ID_GROUPEMENT", null)
                         ->joinInner("groupementtype", "groupementtype.ID_GROUPEMENTTYPE = groupement.ID_GROUPEMENTTYPE", "LIBELLE_GROUPEMENTTYPE")
                         ->where("groupementcommune.NUMINSEE_COMMUNE = '$code_insee'");
+                            
+        return $this->fetchAll($select)->toArray();
+    }
 
+    public function getAllWithTypes()
+    {
+        $select = $this	->select()
+                        ->distinct()
+                        ->setIntegrityCheck(false)
+                        ->from("groupement")
+                        ->joinLeft("groupementcommune", "groupementcommune.ID_GROUPEMENT = groupement.ID_GROUPEMENT", null)
+                        ->joinLeft("groupementtype", "groupementtype.ID_GROUPEMENTTYPE = groupement.ID_GROUPEMENTTYPE", "LIBELLE_GROUPEMENTTYPE");
+
+        return $this->fetchAll($select)->toArray();
+    }
+    
+    public function getByEtablissement(array $ids_etablissement = array()) {
+        
+        $select = $this	->select()
+                        ->setIntegrityCheck(false)
+                        ->from("etablissementadresse", array("etablissementadresse.ID_ETABLISSEMENT"))
+                        ->joinLeft("groupementcommune", "etablissementadresse.NUMINSEE_COMMUNE = groupementcommune.NUMINSEE_COMMUNE", array(
+                            "groupementcommune.ID_GROUPEMENT", 
+                            "groupementcommune.NUMINSEE_COMMUNE", 
+                        ))
+                        ->where("etablissementadresse.ID_ETABLISSEMENT IN(?)", $ids_etablissement)
+                        ->group(array('etablissementadresse.ID_ETABLISSEMENT', 'groupementcommune.ID_GROUPEMENT'));
+        
         return $this->fetchAll($select)->toArray();
     }
 }

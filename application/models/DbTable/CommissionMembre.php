@@ -20,7 +20,10 @@
             $return = array_slice($return, 0, count($primary));
 
             // On rajoute les valeurs de toutes les cl� primaires
-            foreach($return as $pos => $item) :	$return[$pos][$key] = $primary[$pos][$key]; endforeach;
+            foreach($return as $pos => $item) : $return[$pos][$key] = $primary[$pos][$key]; endforeach;
+
+            // Clé primaire en clé du tableau associatif
+            $return = $this->mapResult($return, $key);
 
             // On envoi le tout
             return $return;
@@ -33,8 +36,7 @@
 
             // On parcours le tableau
             foreach ($array as $value) {
-
-                $result[] = $value[$key];
+                $result[$value[$key]] = $value;
             }
 
             return $result;
@@ -53,6 +55,9 @@
             // On initialise le tableau qui contiendra l'ensemble des crit�res
             $array_membres = array();
 
+            // On récupère les informations de la commission
+            $infos_commission = $model_commission->fetchRow("ID_COMMISSION = " . $id_commission);
+
             // Pour chaques r�gles, on va chercher les crit�res
             foreach ($rowset_membresDeLaCommission as $row_membreDeLaCommission) {
 
@@ -60,19 +65,17 @@
                     "id_membre" => $row_membreDeLaCommission["ID_COMMISSIONMEMBRE"],
                     "presence" => $row_membreDeLaCommission["PRESENCE_COMMISSIONMEMBRE"],
                     "groupement" => $row_membreDeLaCommission["ID_GROUPEMENT"],
-                    "contact" => $row_membreDeLaCommission["ID_UTILISATEURINFORMATIONS"],
                     "contacts" => $model_utilisateurInformations->getContact("commission", $id_commission),
                     "libelle" => $row_membreDeLaCommission["LIBELLE_COMMISSIONMEMBRE"],
                     "categories" => $this->fullJoinRegle("categorie", "commissionmembrecategorie", "ID_CATEGORIE", $row_membreDeLaCommission["ID_COMMISSIONMEMBRE"]),
                     "classes" => $this->fullJoinRegle("classe", "commissionmembreclasse", "ID_CLASSE", $row_membreDeLaCommission["ID_COMMISSIONMEMBRE"]),
-                    "types" => $this->fullJoinRegle("type", "commissionmembretype", "ID_TYPE", $row_membreDeLaCommission["ID_COMMISSIONMEMBRE"]),
+                    "types" => $this->fullJoinRegle("typeactivite", "commissionmembretypeactivite", "ID_TYPEACTIVITE", $row_membreDeLaCommission["ID_COMMISSIONMEMBRE"]),
                     "dossiertypes" => $this->fullJoinRegle("dossiertype", "commissionmembredossiertype", "ID_DOSSIERTYPE", $row_membreDeLaCommission["ID_COMMISSIONMEMBRE"]),
                     "dossiernatures" => $this->fullJoinRegle("dossiernatureliste", "commissionmembredossiernature", "ID_DOSSIERNATURE", $row_membreDeLaCommission["ID_COMMISSIONMEMBRE"]),
-                    "infos" => $model_commission->fetchRow("ID_COMMISSION = " . $id_commission)
+                    "infos" => $infos_commission
                 );
             }
 
-            // Zend_Debug::Dump($this->fetchAll($this->select()->setIntegrityCheck(false)->from("commissionreglelocalsommeil", "LOCALSOMMEIL")->where("ID_REGLE = " . $row_regleDeLaCommission["ID_REGLE"]))->toArray());
             return $array_membres;
         }
 

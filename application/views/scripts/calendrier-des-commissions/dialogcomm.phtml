@@ -7,10 +7,7 @@
 		});
 	});
 
-	/**
-	***
-	***APPLIQUER DES CLASSES JQUERY SUR LES INPUT DATE ET HEURE
-	***
+	/**APPLIQUER DES CLASSES JQUERY SUR LES INPUT DATE ET HEURE
 	**/	
 	$('.time').live('focus', function() {
 		$(this).timeEntry($.timeEntry.regional['fr']);
@@ -19,10 +16,7 @@
 		$(this).datepicker({showOn:'focus', dateFormat: 'dd/mm/yy', firstDay: 1}).focus();
 	});
 
-	/**
-	***
-	***FAIT APPARAITRE LA DIV PERMETTANT D'AJOUTER UNE DATE A UNE COMMISSION
-	***
+	/**FAIT APPARAITRE LA DIV PERMETTANT D'AJOUTER UNE DATE A UNE COMMISSION
 	**/
 	$(".addDate").live('click', function(){
 		$("#divAddDate").show();
@@ -30,10 +24,7 @@
 		return false;
 	});
 
-	/**
-	***
-	***GESTION DE L'AJOUT DE DATE DANS LA BOITE DE DIALOGUE
-	***
+	/**GESTION DE L'AJOUT DE DATE DANS LA BOITE DE DIALOGUE
 	**/
 	$('.validAddDate').live('click',function(){
 		var dateSelect = $("#addDate").val();
@@ -84,8 +75,6 @@
 		$("#listeDates").countLigne('add','edit');
 		return false;
 	});
-
-
 
 	$(".cancelAddDate").live('click',function(){
 		//Annulation de l'ajout de date 
@@ -167,19 +156,9 @@
 </script>
 
 <?php
+
 if(isset($this->do) && $this->do == 'edit'){
-	/**
-	***
-	***CODE JAVASCRIPT ET PHP AFFICHE LORS DE L'EDITION D'UNE COMMISSION 
-	*** 
-	**/
-?>
-	<script type="text/javascript">
-		//$(document).ready(function() {
-			//INTEGRALITE DU CODE ENVOYé DANS INDEX.phtml de calendrier commission
-		//});
-	</script>
-<?php
+
 	echo "
 		<form name='formDateComm' id='formDateComm' methode='POST'>
 			<input type='hidden' name='dateCommission' id='dateCommission' value='".$this->dateCommission."' />
@@ -195,11 +174,10 @@ if(isset($this->do) && $this->do == 'edit'){
 			</div>
 			</p>
 				".afficheTabListeDates($this->listeDates)."	
-			<br/>				
+			<br/>
 				".divAddDate()."
 			<br/>
 	";
-	echo afficheDivPeriodicite(count($this->listeDates),$this->do);
 	//Pour la planification elle n'es possible que l'orsque l'on choisi une seule date
 	echo "
 			</form>
@@ -221,7 +199,7 @@ if(isset($this->do) && $this->do == 'edit'){
 			<p>
 			<div id='div_libelleCom' >
 				Saisissez le libellé de la commission
-				<input type='text' name='libelle_comm' id='libelle_comm' value='".$this->libelleCom."' style='width:400px;'/>
+				<input type='text' name='libelle_comm' id='libelle_comm' value=\"".$this->libelleCom."\" style='width:400px;'/>
 			</div>
 			</p>
 			<br/>
@@ -278,32 +256,7 @@ if(isset($this->do) && $this->do == 'edit'){
 			<br/>
 	";
 	echo afficheDivPeriodicite(count($this->listeDates),$this->do);
-		/*
-			//Pour la planification elle n'es possible que l'orsque l'on choisi une seule date
-			if(count($this->listeDates) > 1)
-				$disp = "none";
-			else
-				$disp = "block";
-			echo "
-					<p id='addReapeat' style='display:".$disp."'; >
-						Souhaitez vous planifier cette commission sur une période donnée ?<input type='checkbox' name='repeat' id='repeat'/>
-					</p>
-					<br/>
-					<p id='planification' style='display:none;'>
-						Saisissez la date jusqu'à laquelle vous souhaitez planifier cette commission :
-						<input type='text' class='date' name='dateFin' id='dateFin' />
-						<br/>
-						La commission a lieu toute les
-							<select name='periodicite' id='periodicite'>
-			";
-			foreach($periodicite as $num => $jour){
-					echo "<option value='".$jour."' >".$jour."</option>";
-			}
-			echo "
-						</select>&nbsp;semaines
-				</p>
-			";
-		*/
+
 	echo "
 			</form>
 	";
@@ -322,7 +275,7 @@ if(isset($this->do) && $this->do == 'edit'){
 		break;
 		case 'libelleCom':
 			echo "
-				Saisissez le libellé de la commission <input type='text' name='value_libelleCom' id='value_libelleCom' value='".$this->libelleDateComm."' />
+				Saisissez le libellé de la commission <input type='text' name='value_libelleCom' id='value_libelleCom' value='".htmlentities($this->libelleDateComm, ENT_QUOTES)."' />
 				<button class='validation btn' id='valid_libelleCom'><i class='icon-ok'></i>&nbsp;</button>
 				<button class='annulation btn' id='annule_libelleCom'><i class='icon-remove'></i>&nbsp;</button>
 			";
@@ -535,6 +488,7 @@ function afficheDivPeriodicite($countLigne,$doVal){
 			<div id='planification' style='display:none;float:left;' class='box'>
 				Saisissez la date jusqu'à laquelle vous souhaitez planifier cette commission :<br/><br/>
 				<input type='text' class='date' name='dateFin' id='dateFin' />
+				<span id='erreurDateFin' style='color:red;'></span>
 				<br/>
 				La commission a lieu toute les
 					<select name='periodicite' id='periodicite'>

@@ -1,34 +1,126 @@
-<!-- Titre -->
-<h2 class='page-header'>Fil d'actualité</h2>
+<div id="home" class="dashboard">
+    <?php foreach($this->blocs as $id => $bloc): ?>
+        <?php echo $this->partial('index/partials/'.$bloc['type'].'_bloc.phtml', array_merge($bloc, array('id' => $id))) ?>
+    <?php endforeach ?>
+    <div class="grid-gutter"></div>
 
-<!-- Formulaire d'ajout de messages -->
-<form id='ajouter_news' class='well' action='/index/add-message' method='post' >
+</div>
 
-	<textarea id='textarea' class='bigger' name='text' cols='' rows='' placeholder="Entrez ici votre message d'information."></textarea>
-    
-    <br/>
-    
-    <input type='submit' class='btn btn-primary save' value="Envoyer" />
-    
-    <div class="btn-group pull-left ui-helper-hidden">
-        <a href='#' id='conf' class='btn'><i class="icon-lock"></i> Confidentialité</a>
-    </div>
+<div id="reponse-modal" class="modal hide fade" ></div>
 
-	<select name="type" style="float: right">
-		<option>Message de service</option>
-		<option>Informations</option>
-		<option>Message personnel</option>
-		<option>Autre</option>
-	</select>
-    
-    <div id="dialog-conf" title="Confidentialité" class='ui-helper-hidden'>
-        <?php foreach($this->groupes as $groupe) : ?>
-        <input type="checkbox" name="conf[]" value="<?php echo $groupe["ID_GROUPE"] ?>" checked="checked" /><?php echo $groupe["LIBELLE_GROUPE"] ?><br/>
-        <?php endforeach; ?>
-    </div>
-</form>
+<br>
 
-<!-- Liste des messages-->
-<ul id='index-newsfeed' class='liste_informations unstyled'>
-	<?php echo $this->partialLoop('news/display.phtml', $this->flux); ?>
-</ul>
+<script type="text/javascript">
+    $(document).ready(function() {
+
+        // Gestion des boites modales
+        $("a[data-toggle='modal']").click(function() {
+            var target = $(this).attr("data-target");
+            var url = $(this).attr("href");
+            $(target).load(url);
+        });
+
+        $container = $('.dashboard').packery({
+            itemSelector: '.panel',
+            gutter: '.grid-gutter',
+            // disable initial layout
+            isInitLayout: false
+        });
+
+        var pckry = $container.data('packery');
+
+        // ----- initial sort ----- //
+        var sortOrder = []; // global variable for saving order, used later
+        var storedSortOrder = <?php echo json_encode($this->blocsOrder) ?>;
+        if ( storedSortOrder ) {
+            // create a hash of items by their tabindex
+            var itemsByTabIndex = {};
+            var tabIndex;
+            for (var i=0, len = pckry.items.length; i < len; i++ ) {
+                var item = pckry.items[i];
+                tabIndex = $( item.element ).attr('id');
+                itemsByTabIndex[tabIndex] = item;
+            }
+            // overwrite packery item order
+            i = 0; len = storedSortOrder.length;
+            var j = 0;
+            for (; i < len; i++) {
+                tabIndex = storedSortOrder[i];
+                if (itemsByTabIndex[tabIndex] !== undefined) {
+                   pckry.items[j] = itemsByTabIndex[tabIndex];
+                   j++;
+                }
+            }
+        }
+
+        // ----- packery setup ----- //
+        // optim de perf : on évite au navigateur de dessiner les blocs
+        // avant qu'ils aient pris leur place finale
+        $('.panel').show();
+
+        // trigger initial layout
+        $container.packery();
+
+        var $itemElems = $($container.packery('getItemElements') );
+        $itemElems.draggable({
+            handle: ".panel-heading",
+            containment: "parent"
+        });
+        $container.packery( 'bindUIDraggableEvents', $itemElems );
+
+        var saveTimeout = null;
+        var saveTimeoutMilliseconds = 1000;
+
+        function orderItems() {
+
+            // First cancel previous timeouts
+            clearTimeout(saveTimeout);
+
+            var itemElems = pckry.getItemElements();
+            // reset / empty oder array
+            sortOrder.length = 0;
+            for (var i=0; i< itemElems.length; i++) {
+                sortOrder[i] = itemElems[i].getAttribute("id");
+            }
+
+            // Init a new timemout
+            if ($('.panel.loading').length == 0) {
+                saveTimeout = setTimeout(function() {
+                    $.post("/api/1.0/user/preferences", {
+                        id: <?php echo $this->user['ID_UTILISATEUR'] ?>,
+                        preferences: {
+                            'DASHBOARD_BLOCS': sortOrder
+                        }
+                    });
+                }, saveTimeoutMilliseconds);
+            }
+        }
+
+        $container.packery( 'on', 'layoutComplete', orderItems );
+        //$container.packery( 'on', 'dragItemPositioned', orderItems );
+
+        $('#reinitBlocOrder').click(function() {
+            $.post("/api/1.0/user/preferences", {
+                id: <?php echo $this->user['ID_UTILISATEUR'] ?>,
+                preferences: {
+                    'DASHBOARD_BLOCS': null
+                }
+            }, function() {
+                window.location.reload();
+            });
+        });
+
+        $(".panel-heading .icon").click(function() {
+            var $self = $(this);
+            var $panel = $self.parents('.panel');
+            if ($self.hasClass('icon-chevron-right')) {
+                $self.removeClass('icon-chevron-right').addClass('icon-chevron-down');
+                if ($panel.hasClass('empty') && !$panel.hasClass('loading')) {
+                    $panel.find('.panel-body img').show();
+                    loadBloc($panel);
+                }
+            }
+        });
+
+    });
+</script>
